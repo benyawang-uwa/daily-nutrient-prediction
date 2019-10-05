@@ -33,6 +33,7 @@ create_date<-function(data_set){
 Rainfall<-create_date(Rainfall)
 
 ## rename the col
+Nutrient$Collection.Device<-null
 names(Nutrient) <- c("Date","DOC","DON","NOx","TN","NH4","TP","FRP","TSS")
 names(Flow) <- c("Date","DC_mean")
 names(Rainfall) <- c("Rainfall","Date")
