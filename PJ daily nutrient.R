@@ -1,3 +1,5 @@
+
+
 ## load the package 
 library(mlr)
 library(EcoHydRology)
@@ -14,7 +16,7 @@ library(JBTools)
 library(EGRET)
 
 ## start the parallel 
-h2o.init(nthreads = 3,max_mem_size = "4g")
+h2o.init(nthreads = 8,max_mem_size = "20g")
 all_n_target=c("TP","TN","DOC","DON","DIN","FRP")
 
 
@@ -54,16 +56,16 @@ time.max <- range(Flow$Date)[2]
 Nutrient<-subset(Nutrient,(Nutrient$Date<=time.max)&(Nutrient$Date>=time.min))
 
 remove_outlier<-function(dataset,target){
-   dataset<-subset(dataset,dataset[,target]!='NA')
-   Q1=as.numeric(quantile(dataset[,target],c(0.25,0.75))[1])
-   Q3=as.numeric(quantile(dataset[,target],c(0.25,0.75))[2])
-   IQR=Q3-Q1
-   upper_limit<-Q3+1.5*IQR
-   lower_limit<-Q1-1.5*IQR
-   new_data<-subset(dataset,(dataset[,target]<=upper_limit) & (dataset[,target]>=lower_limit))
-   print(dim(new_data))
-   return(new_data)
-   }
+  dataset<-subset(dataset,dataset[,target]!='NA')
+  Q1=as.numeric(quantile(dataset[,target],c(0.25,0.75))[1])
+  Q3=as.numeric(quantile(dataset[,target],c(0.25,0.75))[2])
+  IQR=Q3-Q1
+  upper_limit<-Q3+1.5*IQR
+  lower_limit<-Q1-1.5*IQR
+  new_data<-subset(dataset,(dataset[,target]<=upper_limit) & (dataset[,target]>=lower_limit))
+  print(dim(new_data))
+  return(new_data)
+}
 
 ## generate new variables 
 ## mean discharge 
@@ -98,20 +100,20 @@ for (d in c(3,7,15)) {
 Flow_DC<-Flow
 
 standardize<-function(train_data,test_data){
-    scaled_train=train_data
-    scaled_test=test_data   
+  scaled_train=train_data
+  scaled_test=test_data   
   for(ii in seq(1,ncol(scaled_train),1)){    
-     min_v<-min(train_data[,ii])    
-     max_v<-max(train_data[,ii])    
-     scaled_train[,ii]=(train_data[,ii]-min_v)/(max_v-min_v)
-     scaled_test[,ii]=(test_data[,ii]-min_v)/(max_v-min_v)
-    }
-    return(list(scaled_train,scaled_test))
+    min_v<-min(train_data[,ii])    
+    max_v<-max(train_data[,ii])    
+    scaled_train[,ii]=(train_data[,ii]-min_v)/(max_v-min_v)
+    scaled_test[,ii]=(test_data[,ii]-min_v)/(max_v-min_v)
+  }
+  return(list(scaled_train,scaled_test))
 }
 
 standardize_reverse<-function(data_set,max_v,min_v){
-     data_set<-data_set*(max_v-min_v)+min_v
-    return(data_set)
+  data_set<-data_set*(max_v-min_v)+min_v
+  return(data_set)
 }
 
 
@@ -151,7 +153,7 @@ combined_nutrient_unscaled <- function(dataset, n_target) {
   
   bfs<-BaseflowSeparation(baseflow_sep$Streamflow_m3s, passes=3)
   
-    for (d in c(2, 3)) {
+  for (d in c(2, 3)) {
     bfs[, paste0("mean_QF", as.character(d))] <- rollmeanr(bfs[,2], k = d, fill = 0)
     # print(d)
   }  
@@ -169,13 +171,13 @@ combined_nutrient_unscaled <- function(dataset, n_target) {
   combined_target$CosDY<-cos(2*pi*combined_target$DecYear)
   
   combined_target$logQ<-log(combined_target$DC_mean+0.001)
-
+  
   ## Qbaseflow/Qtotal
   combined_target$Qbf_Qtotal<-combined_target$bt/(combined_target$DC_mean+0.001)
   combined_target$Qqf_Qtotal<-combined_target$qft/(combined_target$DC_mean+0.001)
-   
+  
   combined_target$DecYear<-NULL
-    
+  
   return(combined_target)
   
 }
@@ -185,13 +187,13 @@ model_build <- function(dataset, n_target) {
   
   y <- n_target
   x <- setdiff(names(dataset), y)
-
+  
   dataset<-as.h2o(dataset)
-   gbm <- h2o.gbm(x = x,
-                    y = y,
-                    training_frame = dataset,
-                                nfolds = 5,
-                    seed = 719)
+  gbm <- h2o.gbm(x = x,
+                 y = y,
+                 training_frame = dataset,
+                 nfolds = 5,
+                 seed = 719)
   return(gbm)
 }
 
@@ -250,7 +252,7 @@ lm_model<-function(train_data,test_data,n_target){
   results<-list(p1,predict_l)
   return (results)
 }
-  
+
 generate_nutrient_daily <- function(data_set,n_target) {
   
   print(n_target)
@@ -259,7 +261,7 @@ generate_nutrient_daily <- function(data_set,n_target) {
   sampled_target_selected <- subset(combined_target,combined_target[,n_target]!='NA')
   ## remove the outliers
   sampled_target_selected<-remove_outlier(sampled_target_selected,n_target)
-
+  
   combined_target$Date <- as.numeric(combined_target$Date)
   
   ## build the model_build
@@ -274,10 +276,10 @@ generate_nutrient_daily <- function(data_set,n_target) {
 
 generated_nutrient_list<-function(dataset,n_target){
   
- if(n_target=="FRP"){
-        nutrient_pool=c("DOC","TP","TN","DON","TSS")
+  if(n_target=="FRP"){
+    nutrient_pool=c("DOC","TP","TN","DON","TSS")
   } else {
-  nutrient_pool=c("DOC","TP","TN","DON")
+    nutrient_pool=c("DOC","TP","TN","DON")
   }  
   
   generated_nutrient<-nutrient_pool[!(nutrient_pool %in% n_target)]
@@ -287,198 +289,199 @@ generated_nutrient_list<-function(dataset,n_target){
     
     g_nutrient<- generate_nutrient_daily(dataset,generated_nutrient[ii])
     nutrient_list[[ii]]<-g_nutrient
-    }
+  }
   return(nutrient_list)
 }
 
 
 for (n_target in all_n_target){
-
-#n_target="DOC" 
-final_results<-data.frame()
-predict_results<-data.frame()
-
-Nutrient2<-remove_outlier(Nutrient,n_target)
-Nutrient2$Date<-format(as.Date(Nutrient2$Date), "%Y-%m-%d")
-
-All_combined<-combined_nutrient_unscaled(Nutrient2,n_target)
-Nutrient_sampled <- subset(All_combined, All_combined[[n_target]] != 'NA')
-Nutrient_sampled<-Nutrient_sampled[order(Nutrient_sampled$Date),]
-
-set.seed(10)
-seed.list<-sample(1111:4000,500,replace =F)
-
-var_number=15
-
-for (tt in seq(1,30)){
-#tt=2
-
-print(c("n_target=",n_target))
-print(tt)
-seed<-seed.list[tt]
-set.seed(seed)
-
-trainIndex <- createDataPartition(Nutrient_sampled[,n_target], p = 0.8, list = FALSE,groups=20)  
-training_p1 <- Nutrient_sampled[trainIndex,]
-testing_p1 <- Nutrient_sampled[-trainIndex,]
-
-#training_p1 <- Nutrient_sampled[-tt,]
-#testing_p1 <- Nutrient_sampled[tt,]
-names(testing_p1) <- colnames(training_p1)
-
-training_p1 <- round(training_p1, digits =7)
-testing_p1 <- round(testing_p1, digits = 7)
-
-train_date<-training_p1$Date
-test_date<-testing_p1$Date
-
-training_p1[,n_target]<-log10(training_p1[,n_target])
-testing_p1[,n_target]<-log10(testing_p1[,n_target])        
-        
-max_target<-max(training_p1[,n_target])
-min_target<-min(training_p1[,n_target])
-    
-s_data<-standardize(training_p1,testing_p1)
-training_p1<-s_data[[1]]
-testing_p1<-s_data[[2]]
-
-pred_lm_p1<-lm_model(training_p1,testing_p1,n_target)[[2]]
-pred_lm_p1[,1]<-standardize_reverse(pred_lm_p1[,1],max_target,min_target)
-pred_lm_p1[,2]<-standardize_reverse(pred_lm_p1[,2],max_target,min_target)
-pred_lm_p1[,1]<-10^(pred_lm_p1[,1])
-pred_lm_p1[,2]<-10^(pred_lm_p1[,2])
-
-p1<-postResample(pred_lm_p1[,2],pred_lm_p1[,1])
-
-training_p1$DC_mean<-NULL
-testing_p1$DC_mean<-NULL
- 
-#selected_var<-c('mean_BF15','DecYear','yday','mean3',
- #               'mean_Qbf_Qtotal15','CosDY','mean11','DOC','Date')
-
-important_val=find_importVar(training_p1,testing_p1,n_target,var_number)
-training_p2<-important_val[[1]]
-testing_p2<-important_val[[2]]
-
-training_p2<-training_p2[order(training_p2$Date),] 
-testing_p2<-testing_p2[order(testing_p2$Date),]    
-
-if("DC_mean" %in% colnames(training_p2)){
-  training_p2$DC_mean<-NULL
-  testing_p2$DC_mean<-NULL 
-}
-
-## train the model 
-#set.seed(seed)
-#training_p2[,n_target]<-log(abs(training_p2[,n_target]))
-rf_p2<- model_build(as.h2o(training_p2), n_target)
-
-## test in testing set
-testing_p2<-as.h2o(testing_p2)
-pred_rf_p2=as.data.frame(h2o::h2o.predict(rf_p2,testing_p2))
-
-## get the prediction performance
-testing_p2<-as.data.frame(testing_p2)
-
-pred_rf_p2<-data.frame(testing_p2[,n_target],pred_rf_p2$predict)
-
-pred_rf_p2[,1]<-standardize_reverse(pred_rf_p2[,1],max_target,min_target)
-pred_rf_p2[,2]<-standardize_reverse(pred_rf_p2[,2],max_target,min_target)
-
-pred_rf_p2[,1]<-10^pred_rf_p2[,1]
-pred_rf_p2[,2]<-10^pred_rf_p2[,2]
-
-p2 = postResample(pred_rf_p2[,2],pred_rf_p2[,1])
-p2
-
-## step 3: modeling with selected variables and predicted nutrient 
-Nutrient_training <- Nutrient2[trainIndex,]
-#Nutrient_training <- Nutrient[-tt,]
-nutrient_data <- generated_nutrient_list(Nutrient_training,n_target)
-
-
-training_p3<-training_p2
-testing_p3<-testing_p2
-
-training_p3$Date<-train_date 
-testing_p3$Date<-test_date    
-
-#for (i in seq(1, length(nutrient_data), 1)) {
-for (i in seq(1,length(nutrient_data))){
-  if(length(nutrient_data[[i]])==0) next
-  nutrient_data[[i]][2]<-log(abs(nutrient_data[[i]][2]))
-
-   min_v<-min(nutrient_data[[i]][2])
-   max_v<-max(nutrient_data[[i]][2])
-   nutrient_data[[i]][2]<-(nutrient_data[[i]][2]-min_v)/(max_v-min_v) 
- 
-  #nutrient_data[[i]][2]<-log(nutrient_data[[i]][2])
-    ## add v1-->calculate the r2 
-  training <- merge(nutrient_data[[i]], training_p3, by = "Date", all.y = T)
-  testing <- merge(nutrient_data[[i]], testing_p3, by = "Date", all.y = T)
   
-  training_p3 <- training
-  testing_p3 <- testing
-}
-
-min_date<-min(training_p3[,"Date"])
-max_date<-max(training_p3[,"Date"])
-
-training_p3[,"Date"]<-(training_p3[,"Date"]-min_date)/(max_date-min_date)
-testing_p3[,"Date"]<-(testing_p3[,"Date"]-min_date)/(max_date-min_date)
-
-training_p3<-training_p3[order(training_p3$Date),] 
-testing_p3<-testing_p3[order(testing_p3$Date),]    
-
-## get R2
-set.seed(719)
-#training_p3[,n_target]<-log(training_p3[,n_target])
-rf_p3 <- model_build(as.h2o(training_p3), n_target)
-
-## test in testing set
-testing_p3<-as.h2o(testing_p3)
-pred_rf_p3=as.data.frame(h2o::h2o.predict(rf_p3,testing_p3))
-testing_p3<-as.data.frame(testing_p3)
-
-pred_rf_p3<-data.frame(testing_p3[,n_target],pred_rf_p3$predict)
-testing_p3<-as.h2o(testing_p3)
-
-pred_rf_p3[,1]<-standardize_reverse(pred_rf_p3[,1],max_target,min_target)
-pred_rf_p3[,2]<-standardize_reverse(pred_rf_p3[,2],max_target,min_target)
-
-pred_rf_p3[,1]<-10^(pred_rf_p3[,1])
-pred_rf_p3[,2]<-10^(pred_rf_p3[,2])
-
-## get the prediction performance
-testing_p3<-as.data.frame(testing_p3)
-p3 = postResample(pred_rf_p3[,2],pred_rf_p3[,1])
-p3
-
-p1<-as.data.frame(t(p1))
-p1$MEF=MEF(pred_lm_p1[,2],pred_lm_p1[,1])
-colnames(p1)<-c("RMSE_p1","R2_p1","MAE_p1","MEF_p1")
-
-p2<-as.data.frame(t(p2))
-p2$MEF=MEF(pred_rf_p2[,2],pred_rf_p2[,1])
-colnames(p2)<-c("RMSE_p2","R2_p2","MAE_p2","MEF_p2")
-
-p3<-as.data.frame(t(p3))
-p3$MEF=MEF(pred_rf_p3[,2],pred_rf_p3[,1])
-colnames(p3)<-c("RMSE_p3","R2_p3","MAE_p3","MEF_p3")
-
-single_result<-data.frame(n_target,tt,p1,p2,p3)
-final_results<-rbind(final_results,single_result)
-rownames(final_results)<-NULL
-
-single_predict_result<-data.frame(n_target,pred_lm_p1,pred_rf_p2[,2],pred_rf_p3[,2])
-predict_results<-rbind(predict_results,single_predict_result)
-rownames(predict_results)<-NULL
-
-print(n_target)
+  #n_target="DOC" 
+  final_results<-data.frame()
+  predict_results<-data.frame()
+  
+  Nutrient2<-remove_outlier(Nutrient,n_target)
+  Nutrient2$Date<-format(as.Date(Nutrient2$Date), "%Y-%m-%d")
+  
+  All_combined<-combined_nutrient_unscaled(Nutrient2,n_target)
+  Nutrient_sampled <- subset(All_combined, All_combined[[n_target]] != 'NA')
+  Nutrient_sampled<-Nutrient_sampled[order(Nutrient_sampled$Date),]
+  
+  set.seed(10)
+  seed.list<-sample(1111:4000,500,replace =F)
+  
+  var_number=15
+  
+  for (tt in seq(1,3)){
+    #tt=2
+    
+    print(c("n_target=",n_target))
+    print(tt)
+    seed<-seed.list[tt]
+    set.seed(seed)
+    
+    trainIndex <- createDataPartition(Nutrient_sampled[,n_target], p = 0.8, list = FALSE,groups=20)  
+    training_p1 <- Nutrient_sampled[trainIndex,]
+    testing_p1 <- Nutrient_sampled[-trainIndex,]
+    
+    #training_p1 <- Nutrient_sampled[-tt,]
+    #testing_p1 <- Nutrient_sampled[tt,]
+    names(testing_p1) <- colnames(training_p1)
+    
+    training_p1 <- round(training_p1, digits =7)
+    testing_p1 <- round(testing_p1, digits = 7)
+    
+    train_date<-training_p1$Date
+    test_date<-testing_p1$Date
+    
+    training_p1[,n_target]<-log10(training_p1[,n_target])
+    testing_p1[,n_target]<-log10(testing_p1[,n_target])        
+    
+    max_target<-max(training_p1[,n_target])
+    min_target<-min(training_p1[,n_target])
+    
+    s_data<-standardize(training_p1,testing_p1)
+    training_p1<-s_data[[1]]
+    testing_p1<-s_data[[2]]
+    
+    pred_lm_p1<-lm_model(training_p1,testing_p1,n_target)[[2]]
+    pred_lm_p1[,1]<-standardize_reverse(pred_lm_p1[,1],max_target,min_target)
+    pred_lm_p1[,2]<-standardize_reverse(pred_lm_p1[,2],max_target,min_target)
+    pred_lm_p1[,1]<-10^(pred_lm_p1[,1])
+    pred_lm_p1[,2]<-10^(pred_lm_p1[,2])
+    
+    p1<-postResample(pred_lm_p1[,2],pred_lm_p1[,1])
+    
+    training_p1$DC_mean<-NULL
+    testing_p1$DC_mean<-NULL
+    
+    #selected_var<-c('mean_BF15','DecYear','yday','mean3',
+    #               'mean_Qbf_Qtotal15','CosDY','mean11','DOC','Date')
+    
+    important_val=find_importVar(training_p1,testing_p1,n_target,var_number)
+    training_p2<-important_val[[1]]
+    testing_p2<-important_val[[2]]
+    
+    training_p2<-training_p2[order(training_p2$Date),] 
+    testing_p2<-testing_p2[order(testing_p2$Date),]    
+    
+    if("DC_mean" %in% colnames(training_p2)){
+      training_p2$DC_mean<-NULL
+      testing_p2$DC_mean<-NULL 
+    }
+    
+    ## train the model 
+    #set.seed(seed)
+    #training_p2[,n_target]<-log(abs(training_p2[,n_target]))
+    rf_p2<- model_build(as.h2o(training_p2), n_target)
+    
+    ## test in testing set
+    testing_p2<-as.h2o(testing_p2)
+    pred_rf_p2=as.data.frame(h2o::h2o.predict(rf_p2,testing_p2))
+    
+    ## get the prediction performance
+    testing_p2<-as.data.frame(testing_p2)
+    
+    pred_rf_p2<-data.frame(testing_p2[,n_target],pred_rf_p2$predict)
+    
+    pred_rf_p2[,1]<-standardize_reverse(pred_rf_p2[,1],max_target,min_target)
+    pred_rf_p2[,2]<-standardize_reverse(pred_rf_p2[,2],max_target,min_target)
+    
+    pred_rf_p2[,1]<-10^pred_rf_p2[,1]
+    pred_rf_p2[,2]<-10^pred_rf_p2[,2]
+    
+    p2 = postResample(pred_rf_p2[,2],pred_rf_p2[,1])
+    p2
+    
+    ## step 3: modeling with selected variables and predicted nutrient 
+    Nutrient_training <- Nutrient2[trainIndex,]
+    #Nutrient_training <- Nutrient[-tt,]
+    nutrient_data <- generated_nutrient_list(Nutrient_training,n_target)
+    
+    
+    training_p3<-training_p2
+    testing_p3<-testing_p2
+    
+    training_p3$Date<-train_date 
+    testing_p3$Date<-test_date    
+    
+    #for (i in seq(1, length(nutrient_data), 1)) {
+    for (i in seq(1,length(nutrient_data))){
+      if(length(nutrient_data[[i]])==0) next
+      nutrient_data[[i]][2]<-log(abs(nutrient_data[[i]][2]))
+      
+      min_v<-min(nutrient_data[[i]][2])
+      max_v<-max(nutrient_data[[i]][2])
+      nutrient_data[[i]][2]<-(nutrient_data[[i]][2]-min_v)/(max_v-min_v) 
+      
+      #nutrient_data[[i]][2]<-log(nutrient_data[[i]][2])
+      ## add v1-->calculate the r2 
+      training <- merge(nutrient_data[[i]], training_p3, by = "Date", all.y = T)
+      testing <- merge(nutrient_data[[i]], testing_p3, by = "Date", all.y = T)
+      
+      training_p3 <- training
+      testing_p3 <- testing
+    }
+    
+    min_date<-min(training_p3[,"Date"])
+    max_date<-max(training_p3[,"Date"])
+    
+    training_p3[,"Date"]<-(training_p3[,"Date"]-min_date)/(max_date-min_date)
+    testing_p3[,"Date"]<-(testing_p3[,"Date"]-min_date)/(max_date-min_date)
+    
+    training_p3<-training_p3[order(training_p3$Date),] 
+    testing_p3<-testing_p3[order(testing_p3$Date),]    
+    
+    ## get R2
+    set.seed(719)
+    #training_p3[,n_target]<-log(training_p3[,n_target])
+    rf_p3 <- model_build(as.h2o(training_p3), n_target)
+    
+    ## test in testing set
+    testing_p3<-as.h2o(testing_p3)
+    pred_rf_p3=as.data.frame(h2o::h2o.predict(rf_p3,testing_p3))
+    testing_p3<-as.data.frame(testing_p3)
+    
+    pred_rf_p3<-data.frame(testing_p3[,n_target],pred_rf_p3$predict)
+    testing_p3<-as.h2o(testing_p3)
+    
+    pred_rf_p3[,1]<-standardize_reverse(pred_rf_p3[,1],max_target,min_target)
+    pred_rf_p3[,2]<-standardize_reverse(pred_rf_p3[,2],max_target,min_target)
+    
+    pred_rf_p3[,1]<-10^(pred_rf_p3[,1])
+    pred_rf_p3[,2]<-10^(pred_rf_p3[,2])
+    
+    ## get the prediction performance
+    testing_p3<-as.data.frame(testing_p3)
+    p3 = postResample(pred_rf_p3[,2],pred_rf_p3[,1])
+    p3
+    
+    p1<-as.data.frame(t(p1))
+    p1$MEF=MEF(pred_lm_p1[,2],pred_lm_p1[,1])
+    colnames(p1)<-c("RMSE_p1","R2_p1","MAE_p1","MEF_p1")
+    
+    p2<-as.data.frame(t(p2))
+    p2$MEF=MEF(pred_rf_p2[,2],pred_rf_p2[,1])
+    colnames(p2)<-c("RMSE_p2","R2_p2","MAE_p2","MEF_p2")
+    
+    p3<-as.data.frame(t(p3))
+    p3$MEF=MEF(pred_rf_p3[,2],pred_rf_p3[,1])
+    colnames(p3)<-c("RMSE_p3","R2_p3","MAE_p3","MEF_p3")
+    
+    single_result<-data.frame(n_target,tt,p1,p2,p3)
+    final_results<-rbind(final_results,single_result)
+    rownames(final_results)<-NULL
+    
+    single_predict_result<-data.frame(n_target,tt,pred_lm_p1,pred_rf_p2[,2],pred_rf_p3[,2])
+    predict_results<-rbind(predict_results,single_predict_result)
+    rownames(predict_results)<-NULL
+    
+    print(n_target)
     print(p1)
     print(p2)
     print(p3)
-
-}
-write.csv(predict_results,paste0("PJ_",n_target,".csv"),row.names=FALSE)
+    
+  }
+  write.csv(predict_results,paste0("PJ_",n_target,".csv"),row.names=FALSE)
 } 
+
