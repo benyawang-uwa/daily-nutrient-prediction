@@ -24,7 +24,7 @@ library(JBTools)
 library(EGRET)
 
 # start the h2o cluster  
-h2o.init(nthreads = 8,max_mem_size = "20g")
+h2o.init(nthreads = 3,max_mem_size = "2g")
 
 # define the nutrient list 
 all_n_target=c("TP","TN","DOC","DON","DIN","FRP")
@@ -247,7 +247,8 @@ generated_nutrient_list<-function(dataset, Flow_DC, Rainfall, n_target){
 }
 
 # load the dataset 
-Nutrient <- read.csv("PJ.csv", header = T)
+setwd('D:/Program/work package 4/daily-nutrient-prediction')
+Nutrient <- read.csv("nutrient_data.csv", header = T)
 Flow <- read.csv("flow.csv", header = T)
 
 Rainfall <- read.csv("rainfall_raw.csv", header = T)
@@ -399,7 +400,7 @@ for (n_target in all_n_target){
     
   
     Nutrient_training <- Nutrient2[trainIndex,]
-    nutrient_data <- generated_nutrient_list(Nutrient_training,n_target)
+    nutrient_data <- generated_nutrient_list(Nutrient_training,Flow_DC, Rainfall, n_target)
         
     training_p3<-training_p2
     testing_p3<-testing_p2
@@ -479,5 +480,6 @@ for (n_target in all_n_target){
     print(p3)
     
   }
-  write.csv(predict_results,paste0("PJ_",n_target,".csv"),row.names=FALSE)
+  colnames(predict_results) <- c("predicted_nutrient", "experiment_num","measured_con","lm_predicted","gbm_predicted",'hybrid_gbm_predicted')
+  write.csv(predict_results,paste0("predicted_daily_",n_target,".csv"),row.names=FALSE)
 } 
